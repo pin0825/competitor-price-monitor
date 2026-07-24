@@ -1,5 +1,7 @@
 # Competitor Price Monitor
 
+[![CI](https://github.com/pin0825/competitor-price-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/pin0825/competitor-price-monitor/actions/workflows/ci.yml)
+
 A FastAPI service that collects configured retailer prices, stores historical
 observations in PostgreSQL, and exposes current prices, history, and statistics.
 

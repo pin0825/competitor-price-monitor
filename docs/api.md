@@ -139,6 +139,48 @@ Latest run, used by the dashboard after a page refresh:
 GET /api/v1/collection-runs/latest
 ```
 
+## Scheduled collection
+
+The separate scheduler service calls an internal endpoint with a shared key:
+
+```http
+POST /api/v1/internal/scheduled-collection-runs
+X-Collection-Key: configured-secret
+```
+
+Missing or invalid keys return `401 Unauthorized`. If no key is configured,
+the endpoint returns `503 Service Unavailable`. Manual dashboard collection
+uses the normal `/collection-runs` endpoint and does not expose this key.
+
+## Price alerts
+
+Create a target-price rule:
+
+```http
+POST /api/v1/products/{product_id}/alert-rules
+Content-Type: application/json
+```
+
+```json
+{
+  "target_price": "760.00",
+  "currency": "GBP"
+}
+```
+
+The rule is immediately evaluated against each retailer's latest stored
+observation. New observations are also evaluated during collection.
+
+```http
+GET   /api/v1/products/{product_id}/alert-rules
+PATCH /api/v1/alert-rules/{rule_id}
+GET   /api/v1/alert-events?product_id=1&acknowledged=false
+PATCH /api/v1/alert-events/{event_id}/acknowledge
+```
+
+Events are unique per rule and observation, so an unchanged price cannot
+generate the same alert repeatedly.
+
 ## Get current prices
 
 ```http

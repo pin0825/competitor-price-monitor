@@ -7,12 +7,24 @@ const state = {
   currentPrices: [],
   history: [],
   statistics: [],
+  alertRules: [],
+  alertEvents: [],
   days: 30,
 };
 
 const elements = {
   productSelect: document.querySelector("#product-select"),
   collectButton: document.querySelector("#collect-button"),
+  alertCenterButton: document.querySelector("#alert-center-button"),
+  alertCount: document.querySelector("#alert-count"),
+  alertModal: document.querySelector("#alert-modal"),
+  alertModalClose: document.querySelector("#alert-modal-close"),
+  alertRuleForm: document.querySelector("#alert-rule-form"),
+  alertTargetPrice: document.querySelector("#alert-target-price"),
+  alertRuleList: document.querySelector("#alert-rule-list"),
+  alertEventList: document.querySelector("#alert-event-list"),
+  ruleCountLabel: document.querySelector("#rule-count-label"),
+  eventCountLabel: document.querySelector("#event-count-label"),
   productName: document.querySelector("#product-name"),
   productMeta: document.querySelector("#product-meta"),
   trackingSince: document.querySelector("#tracking-since"),
@@ -130,6 +142,9 @@ async function initialise() {
     elements.productSelect.value = String(initialProduct.id);
     await loadProduct(initialProduct.id);
     await loadLatestRun();
+    if (new URLSearchParams(window.location.search).get("view") === "alerts") {
+      openAlertModal();
+    }
   } catch (error) {
     renderFatalError(error);
   }
@@ -176,9 +191,108 @@ async function loadProduct(productId) {
     state.history = history.observations;
     state.statistics = statistics.listings;
     renderDashboard();
+    await loadAlerts();
   } catch (error) {
     renderFatalError(error);
   }
+}
+
+async function loadAlerts() {
+  if (!state.product) return;
+  try {
+    const [rules, events] = await Promise.all([
+      request(
+        `${API_BASE}/products/${state.product.id}/alert-rules`,
+      ),
+      request(
+        `${API_BASE}/alert-events?product_id=${state.product.id}&limit=20`,
+      ),
+    ]);
+    state.alertRules = rules;
+    state.alertEvents = events;
+    renderAlerts();
+  } catch (error) {
+    console.warn("Unable to load price alerts", error);
+  }
+}
+
+function renderAlerts() {
+  const unacknowledged = state.alertEvents.filter(
+    (event) => !event.acknowledged_at,
+  );
+  elements.alertCount.textContent = String(unacknowledged.length);
+  elements.alertCount.hidden = unacknowledged.length === 0;
+  elements.alertCenterButton.classList.toggle(
+    "active",
+    unacknowledged.length > 0,
+  );
+
+  elements.ruleCountLabel.textContent = `${state.alertRules.length} rule${
+    state.alertRules.length === 1 ? "" : "s"
+  }`;
+  elements.eventCountLabel.textContent = `${state.alertEvents.length} event${
+    state.alertEvents.length === 1 ? "" : "s"
+  }`;
+
+  elements.alertRuleList.innerHTML = state.alertRules.length
+    ? state.alertRules
+        .map(
+          (rule) => `
+            <div class="alert-rule-item ${
+              rule.is_active ? "" : "rule-paused"
+            }">
+              <span class="alert-rule-icon">⌁</span>
+              <div class="alert-item-copy">
+                <strong>At or below ${formatMoney(
+                  rule.target_price,
+                  rule.currency,
+                )}</strong>
+                <span>${rule.is_active ? "Monitoring all active retailers" : "Rule paused"}</span>
+              </div>
+              <button
+                class="alert-item-action"
+                type="button"
+                data-rule-id="${rule.id}"
+                data-rule-active="${rule.is_active}"
+              >${rule.is_active ? "Pause" : "Resume"}</button>
+            </div>
+          `,
+        )
+        .join("")
+    : '<div class="alert-empty">No price rules configured.</div>';
+
+  elements.alertEventList.innerHTML = state.alertEvents.length
+    ? state.alertEvents
+        .map(
+          (event) => `
+            <div class="alert-event-item ${
+              event.acknowledged_at ? "rule-paused" : ""
+            }">
+              <span class="alert-event-icon">↓</span>
+              <div class="alert-item-copy">
+                <strong>${escapeHtml(event.retailer)} reached ${formatMoney(
+                  event.observed_price,
+                  event.currency,
+                )}</strong>
+                <span>Target ${formatMoney(
+                  event.target_price,
+                  event.currency,
+                )} · ${timeAgo(event.triggered_at)}</span>
+              </div>
+              ${
+                event.acknowledged_at
+                  ? '<span class="alert-item-action">Seen</span>'
+                  : `<button
+                      class="alert-item-action acknowledge"
+                      type="button"
+                      data-event-id="${event.id}"
+                    >Acknowledge</button>`
+              }
+            </div>
+          `,
+        )
+        .join("")
+    : '<div class="alert-empty">No target prices reached yet.</div>';
 }
 
 function renderProductIdentity() {
@@ -620,6 +734,83 @@ elements.productSelect.addEventListener("change", (event) => {
 });
 
 elements.collectButton.addEventListener("click", runCollection);
+
+function openAlertModal() {
+  elements.alertModal.hidden = false;
+  elements.alertTargetPrice.focus();
+}
+
+elements.alertCenterButton.addEventListener("click", openAlertModal);
+
+function closeAlertModal() {
+  elements.alertModal.hidden = true;
+}
+
+elements.alertModalClose.addEventListener("click", closeAlertModal);
+elements.alertModal.addEventListener("click", (event) => {
+  if (event.target === elements.alertModal) closeAlertModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.alertModal.hidden) {
+    closeAlertModal();
+  }
+});
+
+elements.alertRuleForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const targetPrice = elements.alertTargetPrice.value;
+  try {
+    await request(
+      `${API_BASE}/products/${state.product.id}/alert-rules`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          target_price: targetPrice,
+          currency: "GBP",
+        }),
+      },
+    );
+    elements.alertRuleForm.reset();
+    await loadAlerts();
+    showToast(
+      "Price alert created",
+      `Monitoring prices at or below ${formatMoney(targetPrice)}.`,
+    );
+  } catch (error) {
+    showToast("Unable to create alert", error.message, true);
+  }
+});
+
+elements.alertRuleList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-rule-id]");
+  if (!button) return;
+  try {
+    await request(`${API_BASE}/alert-rules/${button.dataset.ruleId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        is_active: button.dataset.ruleActive !== "true",
+      }),
+    });
+    await loadAlerts();
+  } catch (error) {
+    showToast("Unable to update alert", error.message, true);
+  }
+});
+
+elements.alertEventList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-event-id]");
+  if (!button) return;
+  try {
+    await request(
+      `${API_BASE}/alert-events/${button.dataset.eventId}/acknowledge`,
+      { method: "PATCH" },
+    );
+    await loadAlerts();
+  } catch (error) {
+    showToast("Unable to acknowledge alert", error.message, true);
+  }
+});
 
 document.querySelectorAll(".period-control button").forEach((button) => {
   button.addEventListener("click", async () => {

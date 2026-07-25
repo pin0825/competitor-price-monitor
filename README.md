@@ -19,6 +19,8 @@ Apple iPhone 17 / 256GB / Black / SIM-free / GBP
 - Structured product extraction from JSON-LD
 - Per-listing failure isolation
 - Persistent collection-run audit trail with per-retailer latency
+- Target-price rules with deduplicated in-app alert events
+- Authenticated scheduler service for six-hour collection
 - Currency and positive-price validation
 - Duplicate prevention when the latest price is unchanged
 - Current price, history, and retailer-level statistics endpoints
@@ -31,9 +33,9 @@ Apple iPhone 17 / 256GB / Black / SIM-free / GBP
 ## Architecture
 
 ```text
-Manual API request                  Future AWS EventBridge schedule
-        |                                      |
-        +------------------+-------------------+
+Manual dashboard request       Scheduler / AWS EventBridge
+        |                               |
+        +---------------+---------------+
                            |
                            v
                   CollectionService
@@ -84,6 +86,7 @@ This starts:
 - FastAPI on `http://localhost:8000`
 - Swagger UI on `http://localhost:8000/docs`
 - PostgreSQL on `localhost:5432`
+- A separate scheduler service that triggers collection every six hours
 - Alembic migrations before the API server starts
 
 Stop the services with:
@@ -162,6 +165,7 @@ The full request and response contract is documented in
 products 1 --- N listings 1 --- N price_observations
                      |
 collection_runs 1 --- N collection_attempts
+products 1 --- N price_alert_rules 1 --- N price_alert_events
 ```
 
 - `products`: the canonical item being compared
@@ -169,6 +173,8 @@ collection_runs 1 --- N collection_attempts
 - `price_observations`: a price seen at a specific time
 - `collection_runs`: one manual or scheduled collection execution
 - `collection_attempts`: retailer result, message, and latency within a run
+- `price_alert_rules`: product target prices and active state
+- `price_alert_events`: deduplicated target-price matches and acknowledgement
 
 Prices use `NUMERIC(12, 2)` rather than floating-point values. The database also
 enforces a positive-price check constraint. See
@@ -198,17 +204,18 @@ To run a live three-retailer collection without the API:
 .\.venv\Scripts\python.exe -m scripts.scrape_demo
 ```
 
-## Scheduling and AWS deployment
+## Scheduling, alerts, and AWS deployment
 
-The collection logic is separated from its trigger. The API currently exposes a
-manual collection endpoint, while a production AWS deployment can invoke the
-same operation from EventBridge Scheduler.
+The collection logic is separated from its trigger. Docker Compose runs one
+lightweight scheduler service, while a production AWS deployment can invoke the
+same authenticated endpoint from EventBridge Scheduler. The browser never
+receives the scheduler key.
 
 ```text
 EventBridge Scheduler
         |
         v
-ECS task or authenticated collection endpoint
+Authenticated collection endpoint
         |
         v
 Amazon RDS for PostgreSQL
@@ -216,6 +223,10 @@ Amazon RDS for PostgreSQL
 
 This avoids embedding a scheduler in every API replica and accidentally running
 the same collection multiple times when the service scales horizontally.
+
+Target-price matches are stored as in-app events and deduplicated by rule and
+price observation. An AWS deployment can forward newly created events through
+SNS or SES without changing the price collection model.
 
 ## Project structure
 

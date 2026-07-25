@@ -11,6 +11,7 @@ from app.models.price_observation import PriceObservation
 from app.schemas.collection import CollectionItemResult
 from app.scrapers.base import ScrapedProduct
 from app.scrapers.registry import get_scraper_for_url
+from app.services.alerts import evaluate_price_alerts
 
 REQUEST_HEADERS = {
     "User-Agent": (
@@ -145,6 +146,8 @@ def _store_scraped_product(
     db.add(observation)
     # commit 전에 id를 받아 응답에 넣기 위해 INSERT를 DB로 보낸다.
     db.flush()
+    # 새 가격이 목표가를 충족하면 같은 transaction 안에서 알림을 만든다.
+    evaluate_price_alerts(db, listing, observation)
 
     return CollectionItemResult(
         listing_id=listing.id,

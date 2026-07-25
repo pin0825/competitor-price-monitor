@@ -9,6 +9,12 @@ class Settings(BaseSettings):
         "postgresql+psycopg://price_monitor:price_monitor"
         "@localhost:5432/price_monitor"
     )
+    # 자동 수집 전용 endpoint는 브라우저에 노출하지 않는 공유 키로 보호한다.
+    collection_api_key: str | None = None
+    scheduler_api_url: str = "http://api:8000"
+    collection_interval_seconds: int = 21600
+    scheduler_run_on_startup: bool = False
+    scheduler_run_once: bool = False
 
     # .env 파일의 값을 읽되, 정의되지 않은 추가 환경변수는 무시한다.
     model_config = SettingsConfigDict(

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.routes.alerts import router as alerts_router
 from app.api.routes.collection import router as collection_router
 from app.api.routes.listings import router as listings_router
 from app.api.routes.prices import router as prices_router
@@ -22,6 +23,7 @@ app.mount("/static", StaticFiles(directory=static_directory), name="static")
 # products_router 안의 경로 앞에 /api/v1을 공통으로 붙인다.
 app.include_router(products_router, prefix="/api/v1")
 app.include_router(listings_router, prefix="/api/v1")
+app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(collection_router, prefix="/api/v1")
 app.include_router(prices_router, prefix="/api/v1")
 

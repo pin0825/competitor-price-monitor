@@ -6,6 +6,7 @@
 products 1 --- N listings 1 --- N price_observations
                      |
 collection_runs 1 --- N collection_attempts
+products 1 --- N price_alert_rules 1 --- N price_alert_events
 ```
 
 - A product represents the item being compared.
@@ -13,6 +14,8 @@ collection_runs 1 --- N collection_attempts
 - A price observation records the price seen on that page at a specific time.
 - A collection run records one execution across one or more listings.
 - A collection attempt records each retailer result and request duration.
+- An alert rule stores a product target price.
+- An alert event records one observation that met a rule.
 
 ## `products`
 
@@ -98,6 +101,35 @@ if collection-frequency auditing becomes important.
 
 Attempt rows preserve operational evidence even when an unchanged price does
 not create a new `price_observations` row.
+
+## `price_alert_rules`
+
+| Column | Type | Rules | Purpose |
+|---|---|---|---|
+| `id` | integer | primary key | Target-price rule identifier |
+| `product_id` | integer | foreign key, required | Product being monitored |
+| `target_price` | numeric(12,2) | required, greater than zero | Trigger threshold |
+| `currency` | char(3) | required | Rule currency |
+| `is_active` | boolean | required | Whether the rule is evaluated |
+| `created_at` | timestamptz | required | Rule creation time |
+
+## `price_alert_events`
+
+| Column | Type | Rules | Purpose |
+|---|---|---|---|
+| `id` | integer | primary key | Triggered-event identifier |
+| `rule_id` | integer | foreign key, required | Rule that matched |
+| `listing_id` | integer | foreign key, optional | Retailer listing |
+| `observation_id` | integer | foreign key, optional | Matching observation |
+| `retailer` | varchar(100) | required | Retailer snapshot |
+| `observed_price` | numeric(12,2) | required | Price that matched |
+| `target_price` | numeric(12,2) | required | Target snapshot |
+| `currency` | char(3) | required | Event currency |
+| `triggered_at` | timestamptz | required | Match time |
+| `acknowledged_at` | timestamptz | optional | User confirmation time |
+
+The `(rule_id, observation_id)` unique constraint prevents repeated scheduler
+runs from generating duplicate events for the same stored price observation.
 
 ## Statistics
 

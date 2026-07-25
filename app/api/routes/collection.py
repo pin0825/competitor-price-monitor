@@ -1,10 +1,12 @@
+import secrets
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.collection_attempt import CollectionAttempt
 from app.models.collection_run import CollectionRun
@@ -14,6 +16,29 @@ from app.services.collection import collect_listings
 
 router = APIRouter(tags=["collection"])
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+def verify_scheduler_key(
+    provided_key: Annotated[
+        str | None,
+        Header(alias="X-Collection-Key"),
+    ] = None,
+) -> None:
+    """스케줄러 전용 endpoint의 공유 키를 상수 시간 비교로 검증한다."""
+    expected_key = get_settings().collection_api_key
+    if not expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Scheduled collection is not configured",
+        )
+    if provided_key is None or not secrets.compare_digest(
+        provided_key,
+        expected_key,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid collection key",
+        )
 
 
 async def _execute_collection(
@@ -139,6 +164,17 @@ async def collect_all_active_listings(db: DbSession) -> CollectionRunResult:
     )
     listings = list(db.scalars(statement).all())
     return await _execute_collection(listings, db)
+
+
+@router.post(
+    "/internal/scheduled-collection-runs",
+    response_model=CollectionRunResult,
+    tags=["internal"],
+    dependencies=[Depends(verify_scheduler_key)],
+)
+async def run_scheduled_collection(db: DbSession) -> CollectionRunResult:
+    """인증된 scheduler가 모든 활성 listing을 수집한다."""
+    return await collect_all_active_listings(db)
 
 
 @router.post(

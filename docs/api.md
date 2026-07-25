@@ -58,6 +58,25 @@ Successful response:
 
 The API rejects duplicate listing URLs.
 
+## Update a retailer listing
+
+Retailer product pages can move, so an existing listing can be updated without
+losing its historical price observations:
+
+```http
+PATCH /api/v1/listings/{listing_id}
+Content-Type: application/json
+```
+
+```json
+{
+  "url": "https://example.com/products/new-product-page"
+}
+```
+
+`retailer`, `url`, `currency`, and `is_active` are optional, but the request
+must include at least one of them.
+
 ## Run collection
 
 Collect every active listing:

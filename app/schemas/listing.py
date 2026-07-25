@@ -1,6 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 class ListingCreate(BaseModel):
@@ -31,3 +38,25 @@ class ListingRead(BaseModel):
     currency: str
     is_active: bool
     created_at: datetime
+
+
+class ListingUpdate(BaseModel):
+    """주소 변경이나 수집 중지를 위한 listing 부분 수정 요청이다."""
+
+    retailer: str | None = Field(default=None, min_length=1, max_length=100)
+    url: HttpUrl | None = None
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    is_active: bool | None = None
+
+    @field_validator("currency")
+    @classmethod
+    def uppercase_currency(cls, value: str | None) -> str | None:
+        """수정 요청에서도 통화 코드를 대문자로 통일한다."""
+        return value.upper() if value is not None else None
+
+    @model_validator(mode="after")
+    def require_at_least_one_field(self) -> "ListingUpdate":
+        """빈 PATCH 요청은 실수일 가능성이 높으므로 거부한다."""
+        if not self.model_fields_set:
+            raise ValueError("At least one field must be provided")
+        return self

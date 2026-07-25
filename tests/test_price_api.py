@@ -57,6 +57,48 @@ def _create_product_and_listings(client: TestClient) -> tuple[int, list[int]]:
     return product_id, listing_ids
 
 
+def test_listing_can_be_updated_when_retailer_url_changes(
+    client: TestClient,
+) -> None:
+    _, listing_ids = _create_product_and_listings(client)
+    replacement_url = (
+        "https://www.johnlewis.com/apple-iphone-17-ios-6-3-inch-5g-"
+        "sim-free-256gb/black/p999999999"
+    )
+
+    response = client.patch(
+        f"/api/v1/listings/{listing_ids[1]}",
+        json={"url": replacement_url, "currency": "gbp"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["url"] == replacement_url
+    assert response.json()["currency"] == "GBP"
+
+    product = client.get("/api/v1/products").json()[0]
+    updated_listing = next(
+        listing
+        for listing in product["listings"]
+        if listing["id"] == listing_ids[1]
+    )
+    assert updated_listing["url"] == replacement_url
+
+
+def test_listing_update_rejects_empty_payload_and_unknown_id(
+    client: TestClient,
+) -> None:
+    _, listing_ids = _create_product_and_listings(client)
+
+    assert client.patch(
+        f"/api/v1/listings/{listing_ids[0]}",
+        json={},
+    ).status_code == 422
+    assert client.patch(
+        "/api/v1/listings/9999",
+        json={"is_active": False},
+    ).status_code == 404
+
+
 def test_collection_stores_prices_and_prevents_duplicates(
     client: TestClient,
     monkeypatch,

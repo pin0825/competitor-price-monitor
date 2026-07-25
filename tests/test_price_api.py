@@ -129,10 +129,30 @@ def test_collection_stores_prices_and_prevents_duplicates(
     assert first_run.status_code == 200
     assert first_run.json()["created"] == 3
     assert first_run.json()["failed"] == 0
+    assert first_run.json()["status"] == "completed"
+    assert first_run.json()["run_id"] == 1
+    assert all(
+        item["duration_ms"] >= 0
+        for item in first_run.json()["results"]
+    )
 
     second_run = client.post("/api/v1/collection-runs")
     assert second_run.status_code == 200
     assert second_run.json()["unchanged"] == 3
+
+    latest_run = client.get("/api/v1/collection-runs/latest")
+    assert latest_run.status_code == 200
+    assert latest_run.json()["id"] == second_run.json()["run_id"]
+    assert latest_run.json()["status"] == "completed"
+    assert latest_run.json()["unchanged_count"] == 3
+    assert len(latest_run.json()["attempts"]) == 3
+
+    run_history = client.get(
+        "/api/v1/collection-runs",
+        params={"limit": 10},
+    )
+    assert run_history.status_code == 200
+    assert [run["id"] for run in run_history.json()] == [2, 1]
 
     history = client.get(
         f"/api/v1/products/{product_id}/prices/history",

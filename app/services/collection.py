@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
+from time import perf_counter
 
 import httpx
 from sqlalchemy import select
@@ -28,6 +29,19 @@ async def _scrape_listing(
     return await scraper.scrape(listing.url, client)
 
 
+async def _timed_scrape_listing(
+    listing: Listing,
+    client: httpx.AsyncClient,
+) -> tuple[ScrapedProduct | None, BaseException | None, int]:
+    """성공과 실패 모두에 네트워크 처리 시간을 붙여 반환한다."""
+    started = perf_counter()
+    try:
+        scraped = await _scrape_listing(listing, client)
+        return scraped, None, round((perf_counter() - started) * 1000)
+    except BaseException as exc:
+        return None, exc, round((perf_counter() - started) * 1000)
+
+
 async def collect_listings(
     listings: list[Listing],
     db: Session,
@@ -43,34 +57,38 @@ async def collect_listings(
     ) as client:
         # 네트워크 요청은 시간이 오래 걸리므로 세 사이트를 동시에 처리한다.
         tasks = [
-            _scrape_listing(listing, client)
+            _timed_scrape_listing(listing, client)
             for listing in listings
         ]
-        scrape_results = await asyncio.gather(*tasks, return_exceptions=True)
+        scrape_results = await asyncio.gather(*tasks)
 
     observed_at = datetime.now(timezone.utc)
     collection_results: list[CollectionItemResult] = []
 
     # SQLAlchemy의 sync Session은 동시 작업에 안전하지 않으므로
     # 네트워크 수집이 끝난 뒤 DB 쓰기는 하나씩 처리한다.
-    for listing, scrape_result in zip(listings, scrape_results):
-        if isinstance(scrape_result, BaseException):
+    for listing, scrape_outcome in zip(listings, scrape_results):
+        scraped, error, duration_ms = scrape_outcome
+        if error is not None:
             collection_results.append(
                 CollectionItemResult(
                     listing_id=listing.id,
                     retailer=listing.retailer,
                     status="failed",
-                    message=f"{type(scrape_result).__name__}: {scrape_result}",
+                    message=f"{type(error).__name__}: {error}",
+                    duration_ms=duration_ms,
                 )
             )
             continue
 
+        assert scraped is not None
         collection_results.append(
             _store_scraped_product(
                 db=db,
                 listing=listing,
-                scraped=scrape_result,
+                scraped=scraped,
                 observed_at=observed_at,
+                duration_ms=duration_ms,
             )
         )
 
@@ -84,6 +102,7 @@ def _store_scraped_product(
     listing: Listing,
     scraped: ScrapedProduct,
     observed_at: datetime,
+    duration_ms: int,
 ) -> CollectionItemResult:
     """통화와 중복 가격을 검증하고 필요한 경우 observation을 생성한다."""
     if scraped.currency != listing.currency:
@@ -95,6 +114,7 @@ def _store_scraped_product(
                 f"Currency mismatch: listing={listing.currency}, "
                 f"scraped={scraped.currency}"
             ),
+            duration_ms=duration_ms,
         )
 
     latest_statement = (
@@ -114,6 +134,7 @@ def _store_scraped_product(
             currency=scraped.currency,
             observation_id=latest.id,
             message="Latest stored price is unchanged",
+            duration_ms=duration_ms,
         )
 
     observation = PriceObservation(
@@ -133,4 +154,5 @@ def _store_scraped_product(
         currency=scraped.currency,
         observation_id=observation.id,
         message="New price observation stored",
+        duration_ms=duration_ms,
     )

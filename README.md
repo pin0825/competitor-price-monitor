@@ -18,6 +18,7 @@ Apple iPhone 17 / 256GB / Black / SIM-free / GBP
 - Concurrent collection with `HTTPX` and `asyncio`
 - Structured product extraction from JSON-LD
 - Per-listing failure isolation
+- Persistent collection-run audit trail with per-retailer latency
 - Currency and positive-price validation
 - Duplicate prevention when the latest price is unchanged
 - Current price, history, and retailer-level statistics endpoints
@@ -45,13 +46,13 @@ Manual API request                  Future AWS EventBridge schedule
              +------ concurrent HTTP -----+
                            |
                            v
-              validation + duplicate check
+         validation + duplicate check + run audit
                            |
                            v
-                  PostgreSQL history
+          PostgreSQL price and collection history
                            |
                            v
-           FastAPI current/history/statistics
+        FastAPI dashboard/current/history/statistics
 ```
 
 Network requests run concurrently, but synchronous SQLAlchemy writes are
@@ -146,6 +147,7 @@ Run collection and query results:
 
 ```http
 POST /api/v1/collection-runs
+GET  /api/v1/collection-runs/latest
 GET  /api/v1/products/1/prices/current
 GET  /api/v1/products/1/prices/history?days=30
 GET  /api/v1/products/1/statistics?days=30
@@ -158,11 +160,15 @@ The full request and response contract is documented in
 
 ```text
 products 1 --- N listings 1 --- N price_observations
+                     |
+collection_runs 1 --- N collection_attempts
 ```
 
 - `products`: the canonical item being compared
 - `listings`: one retailer page for that product
 - `price_observations`: a price seen at a specific time
+- `collection_runs`: one manual or scheduled collection execution
+- `collection_attempts`: retailer result, message, and latency within a run
 
 Prices use `NUMERIC(12, 2)` rather than floating-point values. The database also
 enforces a positive-price check constraint. See

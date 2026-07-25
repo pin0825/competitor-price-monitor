@@ -98,10 +98,14 @@ Example response:
 
 ```json
 {
+  "run_id": 42,
   "requested": 3,
   "created": 3,
   "unchanged": 0,
   "failed": 0,
+  "status": "completed",
+  "started_at": "2026-07-25T20:30:20Z",
+  "finished_at": "2026-07-25T20:30:21Z",
   "results": [
     {
       "listing_id": 1,
@@ -110,7 +114,8 @@ Example response:
       "price": "799.00",
       "currency": "GBP",
       "observation_id": 1,
-      "message": "New price observation stored"
+      "message": "New price observation stored",
+      "duration_ms": 469
     }
   ]
 }
@@ -118,6 +123,21 @@ Example response:
 
 Running collection again without a price change returns `unchanged` and does
 not create a duplicate observation.
+
+Collection runs and per-retailer attempts are stored independently of price
+changes. This provides an audit trail even when every price is unchanged.
+
+Recent runs:
+
+```http
+GET /api/v1/collection-runs?limit=20
+```
+
+Latest run, used by the dashboard after a page refresh:
+
+```http
+GET /api/v1/collection-runs/latest
+```
 
 ## Get current prices
 

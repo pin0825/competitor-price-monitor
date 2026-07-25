@@ -129,6 +129,7 @@ async function initialise() {
       state.products[0];
     elements.productSelect.value = String(initialProduct.id);
     await loadProduct(initialProduct.id);
+    await loadLatestRun();
   } catch (error) {
     renderFatalError(error);
   }
@@ -512,7 +513,32 @@ async function runCollection() {
   }
 }
 
-function renderCollectionRun(result) {
+async function loadLatestRun() {
+  try {
+    const run = await request(`${API_BASE}/collection-runs/latest`);
+    if (!run) return;
+
+    renderCollectionRun(
+      {
+        run_id: run.id,
+        requested: run.requested_count,
+        created: run.created_count,
+        unchanged: run.unchanged_count,
+        failed: run.failed_count,
+        status: run.status,
+        started_at: run.started_at,
+        finished_at: run.finished_at,
+        results: run.attempts,
+      },
+      true,
+    );
+  } catch (error) {
+    // 가격 화면은 정상 사용할 수 있도록 실행 이력 오류만 콘솔에 남긴다.
+    console.warn("Unable to restore latest collection run", error);
+  }
+}
+
+function renderCollectionRun(result, restored = false) {
   const successful = result.created + result.unchanged;
   const percentage = result.requested
     ? Math.round((successful / result.requested) * 100)
@@ -520,14 +546,22 @@ function renderCollectionRun(result) {
   elements.runPercentage.textContent = `${percentage}%`;
   elements.runTitle.textContent =
     result.failed > 0
-      ? `${successful} of ${result.requested} sources responded`
-      : `All ${result.requested} sources completed`;
-  elements.runSubtitle.textContent = `${result.created} new observations · ${result.unchanged} unchanged · ${result.failed} failed`;
-  elements.runStatus.textContent = result.failed ? "Partial" : "Complete";
+      ? `${
+          restored ? `Run #${result.run_id} · ` : ""
+        }${successful} of ${result.requested} sources responded`
+      : `${restored ? `Run #${result.run_id} · ` : ""}All ${
+          result.requested
+        } sources completed`;
+  const completedLabel =
+    restored && result.finished_at ? `${timeAgo(result.finished_at)} · ` : "";
+  elements.runSubtitle.textContent = `${completedLabel}${result.created} new · ${result.unchanged} unchanged · ${result.failed} failed`;
+  const hasFailures = result.status === "failed" || result.failed > 0;
+  elements.runStatus.textContent =
+    result.status === "failed" ? "Failed" : hasFailures ? "Partial" : "Complete";
   elements.runStatus.className = `run-status ${
-    result.failed ? "partial" : "complete"
+    hasFailures ? "partial" : "complete"
   }`;
-  elements.sidebarCollectionStatus.textContent = result.failed
+  elements.sidebarCollectionStatus.textContent = hasFailures
     ? "Partial"
     : "Complete";
 
@@ -540,7 +574,7 @@ function renderCollectionRun(result) {
           <span class="activity-symbol ${item.status}">${symbol}</span>
           <div class="activity-copy">
             <strong>${escapeHtml(item.retailer)}</strong>
-            <span>${escapeHtml(item.message)}</span>
+            <span>${escapeHtml(item.message)} · ${item.duration_ms} ms</span>
           </div>
           <span class="activity-price">${formatMoney(
             item.price,

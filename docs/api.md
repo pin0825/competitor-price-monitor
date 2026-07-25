@@ -58,6 +58,25 @@ Successful response:
 
 The API rejects duplicate listing URLs.
 
+## Update a retailer listing
+
+Retailer product pages can move, so an existing listing can be updated without
+losing its historical price observations:
+
+```http
+PATCH /api/v1/listings/{listing_id}
+Content-Type: application/json
+```
+
+```json
+{
+  "url": "https://example.com/products/new-product-page"
+}
+```
+
+`retailer`, `url`, `currency`, and `is_active` are optional, but the request
+must include at least one of them.
+
 ## Run collection
 
 Collect every active listing:
@@ -79,10 +98,14 @@ Example response:
 
 ```json
 {
+  "run_id": 42,
   "requested": 3,
   "created": 3,
   "unchanged": 0,
   "failed": 0,
+  "status": "completed",
+  "started_at": "2026-07-25T20:30:20Z",
+  "finished_at": "2026-07-25T20:30:21Z",
   "results": [
     {
       "listing_id": 1,
@@ -91,7 +114,8 @@ Example response:
       "price": "799.00",
       "currency": "GBP",
       "observation_id": 1,
-      "message": "New price observation stored"
+      "message": "New price observation stored",
+      "duration_ms": 469
     }
   ]
 }
@@ -99,6 +123,63 @@ Example response:
 
 Running collection again without a price change returns `unchanged` and does
 not create a duplicate observation.
+
+Collection runs and per-retailer attempts are stored independently of price
+changes. This provides an audit trail even when every price is unchanged.
+
+Recent runs:
+
+```http
+GET /api/v1/collection-runs?limit=20
+```
+
+Latest run, used by the dashboard after a page refresh:
+
+```http
+GET /api/v1/collection-runs/latest
+```
+
+## Scheduled collection
+
+The separate scheduler service calls an internal endpoint with a shared key:
+
+```http
+POST /api/v1/internal/scheduled-collection-runs
+X-Collection-Key: configured-secret
+```
+
+Missing or invalid keys return `401 Unauthorized`. If no key is configured,
+the endpoint returns `503 Service Unavailable`. Manual dashboard collection
+uses the normal `/collection-runs` endpoint and does not expose this key.
+
+## Price alerts
+
+Create a target-price rule:
+
+```http
+POST /api/v1/products/{product_id}/alert-rules
+Content-Type: application/json
+```
+
+```json
+{
+  "target_price": "760.00",
+  "currency": "GBP"
+}
+```
+
+The rule is immediately evaluated against each retailer's latest stored
+observation. New observations are also evaluated during collection.
+
+```http
+GET   /api/v1/products/{product_id}/alert-rules
+PATCH /api/v1/alert-rules/{rule_id}
+GET   /api/v1/alert-events?product_id=1&acknowledged=false
+PATCH /api/v1/alert-events/{event_id}/acknowledge
+```
+
+Events are unique per rule and observation, so an unchanged price cannot
+generate the same alert repeatedly.
 
 ## Get current prices
 

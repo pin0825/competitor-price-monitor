@@ -4,11 +4,18 @@
 
 ```text
 products 1 --- N listings 1 --- N price_observations
+                     |
+collection_runs 1 --- N collection_attempts
+products 1 --- N price_alert_rules 1 --- N price_alert_events
 ```
 
 - A product represents the item being compared.
 - A listing represents that product on one retailer page.
 - A price observation records the price seen on that page at a specific time.
+- A collection run records one execution across one or more listings.
+- A collection attempt records each retailer result and request duration.
+- An alert rule stores a product target price.
+- An alert event records one observation that met a rule.
 
 ## `products`
 
@@ -63,6 +70,66 @@ same price.
 This records price changes rather than filling the database with an identical
 price on every scheduled run. A later version could record every observation
 if collection-frequency auditing becomes important.
+
+## `collection_runs`
+
+| Column | Type | Rules | Purpose |
+|---|---|---|---|
+| `id` | integer | primary key | Collection execution identifier |
+| `status` | varchar(20) | required | Running, completed, partial, or failed |
+| `requested_count` | integer | non-negative | Number of listings requested |
+| `created_count` | integer | non-negative | New price observations |
+| `unchanged_count` | integer | non-negative | Successful unchanged prices |
+| `failed_count` | integer | non-negative | Failed retailer attempts |
+| `started_at` | timestamptz | required | Execution start time |
+| `finished_at` | timestamptz | optional | Execution completion time |
+
+## `collection_attempts`
+
+| Column | Type | Rules | Purpose |
+|---|---|---|---|
+| `id` | integer | primary key | Individual attempt identifier |
+| `run_id` | integer | foreign key, required | Parent collection run |
+| `listing_id` | integer | foreign key, optional | Retailer listing |
+| `retailer` | varchar(100) | required | Snapshot of retailer name |
+| `status` | varchar(20) | required | Created, unchanged, or failed |
+| `price` | numeric(12,2) | optional | Price returned by the scraper |
+| `currency` | char(3) | optional | Price currency |
+| `observation_id` | integer | foreign key, optional | Related stored observation |
+| `message` | text | required | Human-readable result or error |
+| `duration_ms` | integer | required | Retailer request duration |
+
+Attempt rows preserve operational evidence even when an unchanged price does
+not create a new `price_observations` row.
+
+## `price_alert_rules`
+
+| Column | Type | Rules | Purpose |
+|---|---|---|---|
+| `id` | integer | primary key | Target-price rule identifier |
+| `product_id` | integer | foreign key, required | Product being monitored |
+| `target_price` | numeric(12,2) | required, greater than zero | Trigger threshold |
+| `currency` | char(3) | required | Rule currency |
+| `is_active` | boolean | required | Whether the rule is evaluated |
+| `created_at` | timestamptz | required | Rule creation time |
+
+## `price_alert_events`
+
+| Column | Type | Rules | Purpose |
+|---|---|---|---|
+| `id` | integer | primary key | Triggered-event identifier |
+| `rule_id` | integer | foreign key, required | Rule that matched |
+| `listing_id` | integer | foreign key, optional | Retailer listing |
+| `observation_id` | integer | foreign key, optional | Matching observation |
+| `retailer` | varchar(100) | required | Retailer snapshot |
+| `observed_price` | numeric(12,2) | required | Price that matched |
+| `target_price` | numeric(12,2) | required | Target snapshot |
+| `currency` | char(3) | required | Event currency |
+| `triggered_at` | timestamptz | required | Match time |
+| `acknowledged_at` | timestamptz | optional | User confirmation time |
+
+The `(rule_id, observation_id)` unique constraint prevents repeated scheduler
+runs from generating duplicate events for the same stored price observation.
 
 ## Statistics
 

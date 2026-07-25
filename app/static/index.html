@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Competitor price monitoring dashboard for retail intelligence."
+    />
+    <title>Prisma — Price Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="Prisma dashboard home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>PRISMA</span>
+        </a>
+
+        <nav class="main-nav" aria-label="Main navigation">
+          <p class="nav-label">Workspace</p>
+          <a class="nav-item active" href="/">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/>
+            </svg>
+            Overview
+          </a>
+          <a class="nav-item" href="#price-trend">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/>
+            </svg>
+            Price history
+          </a>
+          <a class="nav-item" href="#retailers">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 10h16M5 10l1-5h12l1 5M6 10v9h12v-9M9 19v-5h6v5"/>
+            </svg>
+            Retailers
+          </a>
+          <a class="nav-item" href="/docs">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M6 3h9l3 3v15H6V3Zm3 5h6m-6 4h6m-6 4h4"/>
+            </svg>
+            API explorer
+            <span class="external-mark">↗</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-status">
+          <div class="status-heading">
+            <span>System status</span>
+            <span class="live-dot"></span>
+          </div>
+          <div class="status-row">
+            <span>API service</span>
+            <strong>Operational</strong>
+          </div>
+          <div class="status-row">
+            <span>PostgreSQL</span>
+            <strong>Connected</strong>
+          </div>
+          <div class="status-row">
+            <span>Collection</span>
+            <strong id="sidebar-collection-status">Ready</strong>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="environment-icon">PM</div>
+          <div>
+            <strong>Price Monitor</strong>
+            <span>Production preview</span>
+          </div>
+          <span class="version">v0.1</span>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Market intelligence</p>
+            <h1>Competitor overview</h1>
+          </div>
+          <div class="topbar-actions">
+            <button
+              class="alert-center-button"
+              id="alert-center-button"
+              type="button"
+              aria-label="Open price alerts"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>
+              </svg>
+              <span class="alert-count" id="alert-count" hidden>0</span>
+            </button>
+            <label class="product-picker">
+              <span>Product</span>
+              <select id="product-select" aria-label="Select product"></select>
+            </label>
+            <button class="collect-button" id="collect-button" type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"/>
+              </svg>
+              <span>Collect prices</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="product-hero" aria-labelledby="product-name">
+          <div class="product-visual" aria-hidden="true">
+            <div class="phone phone-back">
+              <span class="camera"></span>
+              <span class="camera second"></span>
+              <span class="flash"></span>
+            </div>
+            <div class="phone phone-front">
+              <span class="island"></span>
+              <span class="screen-glow"></span>
+            </div>
+          </div>
+          <div class="product-copy">
+            <div class="product-badges">
+              <span class="tracking-badge"><i></i> Actively tracked</span>
+              <span class="category-badge">Smartphones</span>
+            </div>
+            <h2 id="product-name">Loading product…</h2>
+            <p id="product-meta">Connecting to the monitoring API</p>
+            <div class="product-facts">
+              <div>
+                <span>Market</span>
+                <strong>United Kingdom</strong>
+              </div>
+              <div>
+                <span>Currency</span>
+                <strong>GBP</strong>
+              </div>
+              <div>
+                <span>Tracking since</span>
+                <strong id="tracking-since">—</strong>
+              </div>
+            </div>
+          </div>
+          <div class="hero-summary">
+            <span>Best available price</span>
+            <strong id="hero-best-price">—</strong>
+            <p id="hero-best-retailer">Waiting for observations</p>
+            <div class="hero-saving" id="hero-saving">No comparison available</div>
+          </div>
+        </section>
+
+        <section class="metric-grid" aria-label="Price summary">
+          <article class="metric-card">
+            <div class="metric-icon accent">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 3v18m5-14H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H7"/>
+              </svg>
+            </div>
+            <div>
+              <span>Lowest price</span>
+              <strong id="lowest-price">—</strong>
+              <p id="lowest-retailer">No price collected</p>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="m5 15 4-4 3 3 7-8m0 0v5m0-5h-5"/>
+              </svg>
+            </div>
+            <div>
+              <span>Market spread</span>
+              <strong id="market-spread">—</strong>
+              <p id="spread-caption">Across active retailers</p>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M4 10h16M5 10l1-5h12l1 5M6 10v9h12v-9"/>
+              </svg>
+            </div>
+            <div>
+              <span>Retailers tracked</span>
+              <strong id="retailer-count">—</strong>
+              <p id="retailer-caption">Configured sources</p>
+            </div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon">
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="8"></circle>
+                <path d="M12 8v5l3 2"/>
+              </svg>
+            </div>
+            <div>
+              <span>Last observation</span>
+              <strong id="last-observation">—</strong>
+              <p id="observation-caption">Not collected yet</p>
+            </div>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel trend-panel" id="price-trend">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Historical performance</p>
+                <h3>Price trend</h3>
+              </div>
+              <div class="period-control" aria-label="Chart period">
+                <button type="button" data-days="7">7D</button>
+                <button class="active" type="button" data-days="30">30D</button>
+                <button type="button" data-days="90">90D</button>
+              </div>
+            </div>
+            <div class="chart-legend" id="chart-legend"></div>
+            <div class="chart-container" id="chart-container">
+              <div class="chart-loading">
+                <span class="loader"></span>
+                Loading price history
+              </div>
+            </div>
+          </article>
+
+          <article class="panel activity-panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Collection health</p>
+                <h3>Latest run</h3>
+              </div>
+              <span class="run-status ready" id="run-status">Ready</span>
+            </div>
+            <div class="run-overview" id="run-overview">
+              <div class="run-ring">
+                <span id="run-percentage">—</span>
+                <small>success</small>
+              </div>
+              <div>
+                <strong id="run-title">Collector standing by</strong>
+                <p id="run-subtitle">Start a run to refresh all active listings.</p>
+              </div>
+            </div>
+            <div class="activity-list" id="activity-list">
+              <div class="activity-empty">
+                <span>↻</span>
+                Collection results will appear here
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel retailer-panel" id="retailers">
+          <div class="panel-header retailer-header">
+            <div>
+              <p class="panel-kicker">Competitive landscape</p>
+              <h3>Retailer performance</h3>
+            </div>
+            <div class="table-updated">
+              <span class="live-dot"></span>
+              Live API data
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Retailer</th>
+                  <th>Current price</th>
+                  <th>30-day range</th>
+                  <th>Average</th>
+                  <th>Change</th>
+                  <th>Last checked</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="retailer-table">
+                <tr>
+                  <td colspan="7" class="table-loading">Loading retailer data…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <footer class="page-footer">
+          <span>PRISMA Price Intelligence</span>
+          <span>FastAPI · PostgreSQL · Docker</span>
+        </footer>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="alert-modal" hidden>
+      <section
+        class="alert-modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="alert-modal-title"
+      >
+        <header class="alert-modal-header">
+          <div>
+            <p class="panel-kicker">Automated monitoring</p>
+            <h2 id="alert-modal-title">Price alerts</h2>
+            <p>Get notified when a retailer reaches your target.</p>
+          </div>
+          <button
+            class="modal-close"
+            id="alert-modal-close"
+            type="button"
+            aria-label="Close price alerts"
+          >×</button>
+        </header>
+
+        <form class="alert-rule-form" id="alert-rule-form">
+          <label>
+            <span>Target price</span>
+            <div class="money-input">
+              <strong>£</strong>
+              <input
+                id="alert-target-price"
+                name="target_price"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="749.00"
+                required
+              />
+            </div>
+          </label>
+          <button type="submit">Create alert</button>
+        </form>
+
+        <div class="alert-modal-section">
+          <div class="alert-section-heading">
+            <h3>Active rules</h3>
+            <span id="rule-count-label">0 rules</span>
+          </div>
+          <div class="alert-rule-list" id="alert-rule-list">
+            <div class="alert-empty">No price rules configured.</div>
+          </div>
+        </div>
+
+        <div class="alert-modal-section events-section">
+          <div class="alert-section-heading">
+            <h3>Triggered events</h3>
+            <span id="event-count-label">0 events</span>
+          </div>
+          <div class="alert-event-list" id="alert-event-list">
+            <div class="alert-empty">No target prices reached yet.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <span class="toast-icon">✓</span>
+      <div>
+        <strong id="toast-title">Collection complete</strong>
+        <p id="toast-message">Prices have been refreshed.</p>
+      </div>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

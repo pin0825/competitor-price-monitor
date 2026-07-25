@@ -8,6 +8,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.listing import Listing
+    from app.models.price_alert_rule import PriceAlertRule
 
 
 class Product(Base):
@@ -27,6 +28,10 @@ class Product(Base):
     # 상품 하나는 여러 쇼핑몰 listing을 가질 수 있다.
     # 상품을 삭제하면 소속 listing도 함께 삭제한다.
     listings: Mapped[list["Listing"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+    alert_rules: Mapped[list["PriceAlertRule"]] = relationship(
         back_populates="product",
         cascade="all, delete-orphan",
     )

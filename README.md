@@ -21,6 +21,7 @@ Apple iPhone 17 / 256GB / Black / SIM-free / GBP
 - Currency and positive-price validation
 - Duplicate prevention when the latest price is unchanged
 - Current price, history, and retailer-level statistics endpoints
+- Responsive price intelligence dashboard with live collection controls
 - PostgreSQL schema migrations with Alembic
 - Docker Compose development environment
 - Deterministic parser and API integration tests
@@ -78,6 +79,7 @@ docker compose up --build
 
 This starts:
 
+- Dashboard on `http://localhost:8000`
 - FastAPI on `http://localhost:8000`
 - Swagger UI on `http://localhost:8000/docs`
 - PostgreSQL on `localhost:5432`
